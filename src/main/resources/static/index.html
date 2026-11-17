@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CyberGuard Incident Console</title>
+<style>
+  :root { --bg:#f4f6f9; --card:#fff; --ink:#1c2430; --muted:#5d6b7c; --line:#d9e0e8; --brand:#1f4e8c;
+          --low:#2e7d32; --medium:#b26a00; --high:#c62828; --critical:#6a1b9a; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#10151c; --card:#1a222d; --ink:#e6ebf1; --muted:#9aa7b6; --line:#2c3846; --brand:#6aa6f0;
+            --low:#66bb6a; --medium:#ffb74d; --high:#ef7b7b; --critical:#ce93d8; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, "Segoe UI", Arial, sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:var(--brand); color:#fff; padding:14px 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; }
+  header h1 { margin:0; font-size:20px; }
+  main { max-width:1100px; margin:20px auto; padding:0 16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px; margin-bottom:16px; }
+  .card h2 { margin:0 0 12px; font-size:17px; }
+  label { display:block; font-size:13px; color:var(--muted); margin:8px 0 4px; }
+  input, select { padding:8px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--ink); font-size:14px; }
+  button { padding:8px 14px; border:0; border-radius:6px; background:var(--brand); color:#fff; font-size:14px; cursor:pointer; }
+  button.secondary { background:transparent; color:var(--brand); border:1px solid var(--brand); }
+  button:disabled { opacity:.5; cursor:wait; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+  .msg { margin-top:10px; font-size:14px; white-space:pre-wrap; }
+  .ok { color:var(--low); } .err { color:var(--high); } .muted { color:var(--muted); font-size:13px; }
+  .tablewrap { overflow-x:auto; }
+  table { border-collapse:collapse; width:100%; font-size:14px; }
+  th, td { text-align:left; padding:8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  .sev { font-weight:700; }
+  .sev-LOW { color:var(--low); } .sev-MEDIUM { color:var(--medium); } .sev-HIGH { color:var(--high); } .sev-CRITICAL { color:var(--critical); }
+  .pill { font-size:12px; padding:2px 8px; border-radius:10px; border:1px solid var(--line); color:var(--muted); }
+  pre { white-space:pre-wrap; word-wrap:break-word; background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:10px; font-size:13px; }
+  dt { font-weight:700; margin-top:10px; } dd { margin:4px 0 0; white-space:pre-wrap; }
+  .hidden { display:none; }
+  h3 { margin:0 0 8px; font-size:14px; color:var(--muted); font-weight:600; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; }
+  .stat { border:1px solid var(--line); border-radius:8px; padding:10px 12px; }
+  .stat b { display:block; font-size:26px; }
+  .stat span { font-size:12px; color:var(--muted); }
+  .grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:18px; margin-top:18px; }
+  .bar { display:flex; align-items:center; gap:8px; margin:6px 0; font-size:13px; }
+  .bar .lab { width:130px; flex-shrink:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .bar .track { flex:1; background:var(--bg); border-radius:4px; height:16px; }
+  .bar .fill { height:100%; border-radius:4px; background:var(--brand); }
+  .bar .num { width:30px; text-align:right; }
+  .bar.wide .lab { width:215px; }
+  .fill-pos { background:var(--high) !important; } .fill-neg { background:var(--low) !important; }
+  .fill-LOW { background:var(--low) !important; } .fill-MEDIUM { background:var(--medium) !important; }
+  .fill-HIGH { background:var(--high) !important; } .fill-CRITICAL { background:var(--critical) !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>CyberGuard Incident Console</h1>
+  <div id="who" class="hidden"><span id="whoText"></span> <button class="secondary" id="logoutBtn" style="color:#fff;border-color:#fff">Log out</button></div>
+</header>
+<main>
+
+  <section class="card" id="loginCard">
+    <h2>1. Log in</h2>
+    <div class="row">
+      <div><label for="u">Username</label><input id="u" autocomplete="username"></div>
+      <div><label for="p">Password</label><input id="p" type="password" autocomplete="current-password"></div>
+      <button id="loginBtn">Log in</button>
+    </div>
+    <div id="loginMsg" class="msg"></div>
+  </section>
+
+  <div id="app" class="hidden">
+    <section class="card" id="dashCard">
+      <h2>Dashboard</h2>
+      <div id="stats" class="stats"></div>
+      <div class="grid2">
+        <div><h3>Incidents by severity</h3><div id="sevChart"></div></div>
+        <div><h3>Incidents over time (by attack date)</h3><div id="timeChart"></div></div>
+      </div>
+      <div class="grid2">
+        <div><h3>Top attacking IP addresses (failed logins)</h3><div class="tablewrap"><table><thead><tr><th>IP address</th><th>Failed attempts</th><th>Accounts targeted</th></tr></thead><tbody id="ipRows"></tbody></table></div></div>
+        <div><h3>Incidents by status</h3><div id="statusChart"></div></div>
+      </div>
+      <div id="dashMsg" class="msg"></div>
+    </section>
+
+    <section class="card" id="mlCard">
+      <h2>Machine-learning model</h2>
+      <p id="mlIntro" class="muted"></p>
+      <div class="grid2">
+        <div><h3>Score on unseen test data</h3><div class="tablewrap"><table><thead><tr><th></th><th>ML model</th><th>Old fixed rule (5+ failures)</th></tr></thead><tbody id="mlRows"></tbody></table></div></div>
+        <div><h3>What the model learned (red = pushes towards "attack", green = towards "normal")</h3><div id="mlWeights"></div></div>
+      </div>
+      <p id="mlNote" class="muted"></p>
+    </section>
+
+    <section class="card">
+      <h2>2. Upload security logs (CSV)</h2>
+      <p class="muted">Columns: timestamp,username,eventType,status,sourceIp &mdash; try <code>sample-data/sample-logs.csv</code> from the project folder.
+        Detected incidents are analysed by the 3 AI agents in the background (about 10&ndash;30 seconds), then click Refresh.</p>
+      <div class="row"><input type="file" id="file" accept=".csv"><button id="uploadBtn">Upload</button></div>
+      <div id="uploadMsg" class="msg"></div>
+    </section>
+
+    <section class="card">
+      <h2>3. Incidents</h2>
+      <div class="row" style="margin-bottom:10px">
+        <button id="refreshBtn" class="secondary">Refresh</button>
+        <span id="aiStatus" class="muted"></span>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>ID</th><th>Risk</th><th>Status</th><th>User</th><th>Title</th><th>ML score</th><th>AI analysis</th><th>Actions</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div id="listMsg" class="msg"></div>
+    </section>
+
+    <section class="card hidden" id="detailCard">
+      <h2 id="detailTitle">Incident details</h2>
+      <dl id="detailBody"></dl>
+    </section>
+  </div>
+
+</main>
+<script>
+"use strict";
+let token = null;
+const STATUSES = ["OPEN", "UNDER_INVESTIGATION", "RESOLVED", "CLOSED"];
+const $ = (id) => document.getElementById(id);
+
+// Build elements with textContent only, so text from log files can never run as HTML/JS (XSS-safe).
+function el(tag, text, className) {
+  const e = document.createElement(tag);
+  if (text !== undefined && text !== null) e.textContent = String(text);
+  if (className) e.className = className;
+  return e;
+}
+function say(id, text, kind) { const e = $(id); e.textContent = text; e.className = "msg " + (kind || ""); }
+
+async function api(path, options) {
+  const opts = options || {};
+  opts.headers = Object.assign({}, opts.headers || {});
+  if (token) opts.headers["Authorization"] = "Bearer " + token;
+  const res = await fetch(path, opts);
+  let data = null;
+  const text = await res.text();
+  if (text) { try { data = JSON.parse(text); } catch (e) { data = null; } }
+  if (!res.ok) {
+    if ((res.status === 401 || res.status === 403) && token) {
+      throw new Error("Not allowed (HTTP " + res.status + "). Log in again, and make sure your account is ADMIN or SECURITY_ANALYST.");
+    }
+    const detail = data && data.details ? " - " + data.details.join("; ") : "";
+    throw new Error((data && data.message ? data.message : "Request failed (HTTP " + res.status + ")") + detail);
+  }
+  return data;
+}
+
+$("loginBtn").addEventListener("click", async () => {
+  $("loginBtn").disabled = true;
+  try {
+    const data = await api("/api/auth/login", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: $("u").value.trim(), password: $("p").value })
+    });
+    token = data.token;
+    $("p").value = "";
+    $("whoText").textContent = data.username + " (" + data.role + ")";
+    $("who").classList.remove("hidden");
+    $("loginCard").classList.add("hidden");
+    $("app").classList.remove("hidden");
+    if (data.role === "USER") say("listMsg", "This account is a plain USER, so it cannot see incidents. Log in as an admin or analyst.", "err");
+    await loadStatus();
+    await loadIncidents();
+    await loadDashboard();
+    await loadMl();
+  } catch (e) { say("loginMsg", e.message, "err"); }
+  finally { $("loginBtn").disabled = false; }
+});
+$("p").addEventListener("keydown", (ev) => { if (ev.key === "Enter") $("loginBtn").click(); });
+
+$("logoutBtn").addEventListener("click", () => {
+  token = null;
+  $("who").classList.add("hidden"); $("app").classList.add("hidden"); $("detailCard").classList.add("hidden");
+  $("loginCard").classList.remove("hidden"); say("loginMsg", "", "");
+});
+
+async function loadStatus() {
+  try {
+    const s = await api("/api/ai/status");
+    $("aiStatus").textContent = s.llmConfigured
+      ? "AI mode: LLM (" + s.model + ")"
+      : "AI mode: OFFLINE rules (no API key set - agents use built-in logic)";
+  } catch (e) { $("aiStatus").textContent = ""; }
+}
+
+$("uploadBtn").addEventListener("click", async () => {
+  const f = $("file").files[0];
+  if (!f) { say("uploadMsg", "Choose a CSV file first.", "err"); return; }
+  $("uploadBtn").disabled = true;
+  try {
+    const fd = new FormData(); fd.append("file", f);
+    const r = await api("/api/logs/upload", { method: "POST", body: fd });
+    say("uploadMsg", "Rows: " + r.totalRows + " | stored: " + r.storedCount + " | errors: " + r.errorCount +
+        " | new incidents: " + r.incidentsCreated + (r.errors && r.errors.length ? "\n" + r.errors.join("\n") : ""), "ok");
+    await loadIncidents();
+    await loadDashboard();
+  } catch (e) { say("uploadMsg", e.message, "err"); }
+  finally { $("uploadBtn").disabled = false; }
+});
+
+$("refreshBtn").addEventListener("click", () => { loadIncidents(); loadDashboard(); });
+
+const pct = (x) => (x * 100).toFixed(1) + "%";
+
+async function loadMl() {
+  try {
+    const s = await api("/api/ml/status");
+    if (!s.ready) {
+      $("mlIntro").textContent = s.enabled ? "The ML model could not be trained (see the Eclipse Console)." : "ML is switched off (ML_ENABLED=false).";
+      return;
+    }
+    const r = s.report;
+    $("mlIntro").textContent = r.algorithm + ". Trained on " + r.trainSamples + " examples and tested on " + r.testSamples +
+      " it had never seen. After each upload it creates an incident when it rates a login pattern at " + Math.round(s.threshold * 100) +
+      "% attack probability or more and no rule has covered it.";
+    const body = $("mlRows"); body.textContent = "";
+    [["Accuracy", "accuracy"], ["Precision (alerts that were real)", "precision"], ["Recall (attacks caught)", "recall"], ["F1 score", "f1"]].forEach(([label, key]) => {
+      const tr = el("tr"); tr.appendChild(el("td", label)); tr.appendChild(el("td", pct(r.model[key]))); tr.appendChild(el("td", pct(r.rulesBaseline[key]))); body.appendChild(tr);
+    });
+    [["Missed attacks", "falseNegatives"], ["False alarms", "falsePositives"]].forEach(([label, key]) => {
+      const tr = el("tr"); tr.appendChild(el("td", label)); tr.appendChild(el("td", r.model[key])); tr.appendChild(el("td", r.rulesBaseline[key])); body.appendChild(tr);
+    });
+    const box = $("mlWeights"); box.textContent = "";
+    const max = Math.max(0.0001, ...r.featureWeights.map((w) => Math.abs(w)));
+    r.featureNames.forEach((name, idx) => {
+      const w = r.featureWeights[idx];
+      const row = el("div", null, "bar wide"); row.appendChild(el("span", name, "lab"));
+      const track = el("div", null, "track"); const fill = el("div", null, "fill " + (w >= 0 ? "fill-pos" : "fill-neg"));
+      fill.style.width = Math.max(3, Math.round(Math.abs(w) * 100 / max)) + "%";
+      track.appendChild(fill); row.appendChild(track); row.appendChild(el("span", w.toFixed(2), "num")); box.appendChild(row);
+    });
+    $("mlNote").textContent = r.dataNote;
+  } catch (e) { $("mlIntro").textContent = e.message; }
+}
+
+async function loadDashboard() {
+  try {
+    const d = await api("/api/dashboard/summary");
+    renderStats(d.totals);
+    renderBars("sevChart", d.bySeverity, true);
+    renderBars("statusChart", d.byStatus, false);
+    renderTime(d.incidentsOverTime);
+    renderIps(d.topAttackingIps);
+    say("dashMsg", "", "");
+  } catch (e) { say("dashMsg", e.message, "err"); }
+}
+
+function renderStats(t) {
+  const box = $("stats"); box.textContent = "";
+  [["Total incidents", t.totalIncidents], ["Active incidents", t.activeIncidents], ["Critical (active)", t.criticalActive],
+   ["AI-analysed", t.aiAnalysed], ["Logs stored", t.totalLogs], ["Failed logins", t.failedLogins]].forEach(([label, value]) => {
+    const c = el("div", null, "stat"); c.appendChild(el("b", value)); c.appendChild(el("span", label)); box.appendChild(c);
+  });
+}
+
+function renderBars(id, counts, colourBySeverity) {
+  const box = $(id); box.textContent = "";
+  const max = Math.max(1, ...Object.values(counts));
+  Object.keys(counts).forEach((k) => {
+    const row = el("div", null, "bar");
+    row.appendChild(el("span", k.replace(/_/g, " "), "lab"));
+    const track = el("div", null, "track"); const fill = el("div", null, "fill" + (colourBySeverity ? " fill-" + k : ""));
+    fill.style.width = counts[k] ? Math.max(4, Math.round(counts[k] * 100 / max)) + "%" : "0%";
+    track.appendChild(fill); row.appendChild(track); row.appendChild(el("span", counts[k], "num")); box.appendChild(row);
+  });
+}
+
+function renderTime(days) {
+  const box = $("timeChart"); box.textContent = "";
+  if (!days.length) { box.appendChild(el("div", "No incidents yet.", "muted")); return; }
+  const NS = "http://www.w3.org/2000/svg", W = 420, H = 170, left = 24, bottom = 28, top = 18;
+  const max = Math.max(...days.map((d) => d.count));
+  const slot = (W - left) / days.length, bw = Math.min(48, slot * 0.7);
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H); svg.setAttribute("width", "100%"); svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", "Incidents per day");
+  const add = (tag, attrs, text) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (text !== undefined) n.textContent = text; svg.appendChild(n); return n; };
+  add("line", { x1: left, y1: H - bottom, x2: W, y2: H - bottom, stroke: "currentColor", "stroke-opacity": "0.3" });
+  days.forEach((d, i) => {
+    const h = Math.round((H - bottom - top) * d.count / max), x = left + i * slot + (slot - bw) / 2;
+    const bar = add("rect", { x: x, y: H - bottom - h, width: bw, height: h, rx: 3 }); bar.style.fill = "var(--brand)";
+    const cnt = add("text", { x: x + bw / 2, y: H - bottom - h - 4, "text-anchor": "middle", "font-size": 11 }, d.count); cnt.style.fill = "var(--ink)";
+    const lab = add("text", { x: x + bw / 2, y: H - 10, "text-anchor": "middle", "font-size": 10 }, d.date.slice(5)); lab.style.fill = "var(--muted)";
+  });
+  box.appendChild(svg);
+}
+
+function renderIps(ips) {
+  const body = $("ipRows"); body.textContent = "";
+  if (!ips.length) { const tr = el("tr"); const td = el("td", "No failed logins yet.", "muted"); td.colSpan = 3; tr.appendChild(td); body.appendChild(tr); return; }
+  ips.forEach((i) => { const tr = el("tr"); tr.appendChild(el("td", i.ip)); tr.appendChild(el("td", i.failedAttempts)); tr.appendChild(el("td", i.targetedUsers)); body.appendChild(tr); });
+}
+
+async function loadIncidents() {
+  try {
+    const page = await api("/api/incidents?size=50&sort=id,desc");
+    const rows = $("rows"); rows.textContent = "";
+    page.content.forEach((i) => rows.appendChild(renderRow(i)));
+    say("listMsg", page.content.length ? "" : "No incidents yet. Upload a CSV with repeated failed logins.", "muted");
+  } catch (e) { say("listMsg", e.message, "err"); }
+}
+
+function renderRow(i) {
+  const tr = el("tr");
+  tr.appendChild(el("td", i.id));
+  const sevTd = el("td"); sevTd.appendChild(el("span", i.severity, "sev sev-" + i.severity)); tr.appendChild(sevTd);
+
+  const stTd = el("td"); const sel = el("select");
+  STATUSES.forEach((s) => { const o = el("option", s); o.value = s; if (s === i.status) o.selected = true; sel.appendChild(o); });
+  sel.addEventListener("change", async () => {
+    try { await api("/api/incidents/" + i.id + "/status", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: sel.value }) }); say("listMsg", "Status of #" + i.id + " updated.", "ok"); loadDashboard(); }
+    catch (e) { say("listMsg", e.message, "err"); }
+  });
+  stTd.appendChild(sel); tr.appendChild(stTd);
+
+  tr.appendChild(el("td", i.affectedUsername));
+  tr.appendChild(el("td", i.title));
+  tr.appendChild(el("td", i.mlScore === null || i.mlScore === undefined ? "-" : Math.round(i.mlScore * 100) + "%"));
+  const aiTd = el("td");
+  aiTd.appendChild(el("div", i.aiClassification || "not analysed yet"));
+  if (i.aiAnalysisSource) aiTd.appendChild(el("span", i.aiAnalysisSource, "pill"));
+  tr.appendChild(aiTd);
+
+  const act = el("td");
+  const run = el("button", i.aiAnalyzedAt ? "Re-run AI" : "Run AI");
+  run.addEventListener("click", async () => {
+    run.disabled = true; run.textContent = "Analysing...";
+    try { const r = await api("/api/incidents/" + i.id + "/analyze", { method: "POST" }); await loadIncidents(); loadDashboard(); showDetails(r); }
+    catch (e) { say("listMsg", e.message, "err"); run.disabled = false; run.textContent = "Run AI"; }
+  });
+  const det = el("button", "Details", "secondary"); det.style.marginLeft = "6px";
+  det.addEventListener("click", async () => { try { showDetails(await api("/api/incidents/" + i.id)); } catch (e) { say("listMsg", e.message, "err"); } });
+  act.appendChild(run); act.appendChild(det); tr.appendChild(act);
+  return tr;
+}
+
+function showDetails(i) {
+  $("detailCard").classList.remove("hidden");
+  $("detailTitle").textContent = "Incident #" + i.id + " - " + i.title;
+  const dl = $("detailBody"); dl.textContent = "";
+  const add = (label, value, pre) => {
+    dl.appendChild(el("dt", label));
+    const dd = el("dd"); if (pre) dd.appendChild(el("pre", value || "-")); else dd.textContent = value || "-";
+    dl.appendChild(dd);
+  };
+  add("Risk level (Agent 2)", i.severity);
+  add("ML attack probability (trained model)", i.mlScore === null || i.mlScore === undefined ? "not scored" : Math.round(i.mlScore * 100) + "%");
+  add("Classification (Agent 1)", i.aiClassification);
+  add("Risk reasoning (Agent 2)", i.aiRiskReasoning);
+  add("Recommended actions (Agent 3)", i.aiRecommendation);
+  add("Generated by", (i.aiAnalysisSource || "not analysed yet") + (i.aiAnalyzedAt ? " at " + i.aiAnalyzedAt : ""));
+  add("Incident report (Agent 3)", i.aiGeneratedReport, true);
+  $("detailCard").scrollIntoView({ behavior: "smooth" });
+}
+</script>
+</body>
+</html>

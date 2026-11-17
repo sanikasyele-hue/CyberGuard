@@ -1,0 +1,12 @@
+# build output
+target/
+# secrets - never commit
+.env
+# Eclipse / IDE files
+.classpath
+.project
+.settings/
+bin/
+.idea/
+*.iml
+.vscode/

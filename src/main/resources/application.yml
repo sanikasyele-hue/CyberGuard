@@ -1,0 +1,66 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: cyberguard-incident-management
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/cyberguard_db
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:root}   # local default; set DB_PASSWORD env var when deploying
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update        # use 'validate' once schema is stable in production
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  servlet:
+    multipart:
+      max-file-size: 5MB      # limits CSV log upload size
+      max-request-size: 5MB
+
+# JWT configuration — for deployment set JWT_SECRET (base64, min 256-bit) as an environment variable.
+# If it is empty the app creates a random key at startup (fine for local use; logins reset on restart).
+app:
+  jwt:
+    secret: ${JWT_SECRET:}
+    expiration-ms: ${JWT_EXPIRATION_MS:3600000}   # default 1 hour
+
+  detection:
+    failed-login-threshold: ${FAILED_LOGIN_THRESHOLD:5}   # min failed attempts to trigger an incident
+    window-minutes: ${DETECTION_WINDOW_MINUTES:10}         # time window the threshold applies within
+    compromise-min-failures: ${COMPROMISE_MIN_FAILURES:5}  # rule 2: failures before a success that count as "possible takeover"
+    spray-min-attempts: ${SPRAY_MIN_ATTEMPTS:6}            # rule 3: failed logins from one IP ...
+    spray-min-users: ${SPRAY_MIN_USERS:3}                  # ... against at least this many different accounts
+
+  # First admin account, created automatically if it does not exist yet.
+  seed:
+    enabled: ${SEED_ADMIN_ENABLED:true}
+    admin-username: ${SEED_ADMIN_USERNAME:admin}
+    admin-password: ${SEED_ADMIN_PASSWORD:Admin@12345}   # CHANGE for deployment
+    admin-email: ${SEED_ADMIN_EMAIL:admin@cyberguard.local}
+
+  # Machine-learning model (trained at startup on simulated data, then used to find and score incidents).
+  ml:
+    enabled: ${ML_ENABLED:true}
+    threshold: ${ML_THRESHOLD:0.8}       # attack probability needed before the ML pass creates an incident
+
+  # The 3 AI agents. With no API key the app still works: agents use built-in offline rules.
+  ai:
+    provider-api-key: ${AI_PROVIDER_API_KEY:}  # OpenAI-compatible API key, set as env var (never commit it)
+    base-url: ${AI_PROVIDER_BASE_URL:https://api.openai.com/v1}
+    model: ${AI_MODEL:gpt-4o-mini}
+    timeout-seconds: ${AI_TIMEOUT_SECONDS:30}
+    max-tokens: ${AI_MAX_TOKENS:900}
+    auto-analyze: ${AI_AUTO_ANALYZE:true}      # run the agents automatically when an incident is detected
+
+logging:
+  level:
+    root: INFO
+    com.cyberguard.incident: DEBUG
+    org.springframework.security: WARN
